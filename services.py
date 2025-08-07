@@ -26,7 +26,7 @@ import base64
 # Add this import at the top if not already present
 
 
-def call_seedream_api(prompt: str) -> bytes:
+def call_seedream_api(prompt: str) -> tuple[bytes, str]:
     """
     Call Seedream Text-to-Image API with reference image.
     This function sends both the reference image (base64) and prompt to Seedream
@@ -56,23 +56,27 @@ def call_seedream_api(prompt: str) -> bytes:
         result = response.json()
         image_url = result["data"][0]["url"]
         output = requests.get(image_url).content
-        return output
+        return output, image_url
     else:
         raise Exception(
             f"Seedream API request failed with status code {response.status_code}: {response.text}"
         )
 
 
-def generate_images_with_seedream(prompts: List[str]) -> List[bytes]:
+def generate_images_with_seedream(prompts: List[str]) -> List[str]:
     generated_images = []
     for prompt in prompts:
-        img_bytes = call_seedream_api(prompt)
-        edited_img_bytes = edit_image_with_seededit(img_bytes, prompt)
-        generated_images.append(edited_img_bytes)
+        img_bytes, image_url = call_seedream_api(prompt)
+        edited_img_bytes, edited_image_url = edit_image_with_seededit(
+            img_bytes, image_url, prompt
+        )
+        generated_images.append(edited_image_url)
     return generated_images
 
 
-def edit_image_with_seededit(image_bytes: bytes, prompt: str) -> bytes:
+def edit_image_with_seededit(
+    image_bytes: bytes, image_url: str, prompt: str
+) -> tuple[bytes, str]:
     """
     Use SeedEdit model to refine the generated image.
     """
@@ -90,7 +94,7 @@ def edit_image_with_seededit(image_bytes: bytes, prompt: str) -> bytes:
             "api_key": ark_api_key,
             "model": "seededit-3-0-i2i-250628",  # Replace with your actual model name
             "prompt": f"Enhance the quality of the image by improving accuracy of packaging or lighting.",
-            "image": f"data:image/jpeg;base64,{image_base64}",
+            "image": f"{image_url}",
             "response_format": "url",
             "size": "adaptive",
             "guidance_scale": 1.1,
@@ -103,7 +107,7 @@ def edit_image_with_seededit(image_bytes: bytes, prompt: str) -> bytes:
         result = response.json()
         image_url = result["data"][0]["url"]
         edited_image = requests.get(image_url).content
-        return edited_image
+        return edited_image, image_url
     else:
         raise Exception(
             f"SeedEdit API request failed with status code {response.status_code}: {response.text}"

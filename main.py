@@ -19,12 +19,9 @@ async def generate_images_endpoint(request: GenerationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Return base64 encoded images
-    import base64
+    urls = [img for img in generated_images]
 
-    encoded_images = [base64.b64encode(img).decode("utf-8") for img in generated_images]
-
-    return GenerationResponse(images_base64=encoded_images)
+    return GenerationResponse(images_url=urls)
 
 
 if __name__ == "__main__":

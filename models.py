@@ -3,7 +3,7 @@ from typing import List
 
 
 class GenerationResponse(BaseModel):
-    images_base64: List[str]
+    images_url: List[str]
 
 
 class GenerationRequest(BaseModel):
