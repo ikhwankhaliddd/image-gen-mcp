@@ -16,7 +16,7 @@ class StylePlanRequest(BaseModel):
     modifiers: list[str]
     target: str
     constraints: list[str]
-    strength: float
+    strength: str | None = None
     image_url: str | None = None
 
 
