@@ -11,11 +11,11 @@ class GenerationRequest(BaseModel):
 
 
 class StylePlanRequest(BaseModel):
-    final_prompt: str
-    style: str
-    modifiers: list[str]
-    target: str
-    constraints: list[str]
+    final_prompt: str | None = None
+    style: str | None = None
+    modifiers: list[str] | None = None
+    target: str | None = None
+    constraints: list[str] | None = None
     strength: str | None = None
     image_url: str | None = None
 
