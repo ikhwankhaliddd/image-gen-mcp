@@ -121,7 +121,7 @@ class MCPInterface:
     """Main MCP Interface class for managing the Streamlit application"""
     
     def __init__(self):
-        self.api_base_url = "http://69.5.1.247:8003"
+        self.api_base_url = "http://69.5.1.247/svc3"
         self.endpoints = {
             'byteplus_generate': f"{self.api_base_url}/byteplus-generate",
             'byteplus_generate_image': f"{self.api_base_url}/byteplus-generate-image",
