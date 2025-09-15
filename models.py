@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
+from enum import Enum
 
 
 class GenerationResponse(BaseModel):
@@ -8,6 +9,43 @@ class GenerationResponse(BaseModel):
 
 class GenerationRequest(BaseModel):
     prompts: List[str]
+
+
+class SequentialImageGeneration(str, Enum):
+    DISABLED = "disabled"
+    AUTO = "auto"
+
+
+class ResponseFormat(str, Enum):
+    URL = "url"
+    B64_JSON = "b64_json"
+
+
+class ImageSize(str, Enum):
+    SIZE_1K = "1K"
+    SIZE_2K = "2K"
+    SIZE_4K = "4K"
+
+
+class SequentialImageGenerationOptions(BaseModel):
+    max_images: Optional[int] = None
+
+
+class BytePlusImageRequest(BaseModel):
+    model: str = "ep-20250911111250-zd7zw"
+    prompt: str
+    image: Optional[Union[str, List[str]]] = None  # Single URL or list of URLs for reference images
+    sequential_image_generation: SequentialImageGeneration = SequentialImageGeneration.DISABLED
+    sequential_image_generation_options: Optional[SequentialImageGenerationOptions] = None
+    response_format: ResponseFormat = ResponseFormat.URL
+    size: ImageSize = ImageSize.SIZE_2K
+    stream: bool = False
+    watermark: bool = True
+
+
+class BytePlusImageResponse(BaseModel):
+    data: List[Dict[str, Any]]
+    usage: Optional[Dict[str, Any]] = None
 
 
 class StylePlanRequest(BaseModel):

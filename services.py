@@ -5,7 +5,7 @@ import os
 from openai import OpenAI, api_key
 import requests
 from dotenv import load_dotenv
-from models import StylePlanRequest, StylePlanOutput, CharaGeneratorRequest
+from models import StylePlanRequest, StylePlanOutput, CharaGeneratorRequest, BytePlusImageRequest, BytePlusImageResponse
 
 # Make sure that you have stored the API Key in the environment variable ARK_API_KEY
 # Initialize the Ark client to read your API Key from an environment variable
@@ -225,3 +225,54 @@ def generate_chara_image(
         # TODO: 1. Call SeedEdit for Postprocessor
         # TODO: 2. Call Seedance for Image2Vid
     return output_image_url, seededit_response
+
+
+def generate_byteplus_images(request: BytePlusImageRequest) -> BytePlusImageResponse:
+    """
+    Comprehensive BytePlus image generation function that handles all 5 use cases:
+    1. Text2Img (single image)
+    2. Text2Img (multiple images from prompt) 
+    3. Img2Img (single reference image)
+    4. Img2Img (expand to multiple images)
+    5. Img2Img (multiple reference images)
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {ark_api_key}",
+    }
+    
+    # Build the request payload
+    payload = {
+        "model": request.model,
+        "prompt": request.prompt,
+        "sequential_image_generation": request.sequential_image_generation.value,
+        "response_format": request.response_format.value,
+        "size": request.size.value,
+        "stream": request.stream,
+        "watermark": request.watermark
+    }
+    
+    # Add image(s) if provided (for Img2Img use cases)
+    if request.image is not None:
+        payload["image"] = request.image
+    
+    # Add sequential image generation options if provided
+    if request.sequential_image_generation_options is not None:
+        payload["sequential_image_generation_options"] = {
+            "max_images": request.sequential_image_generation_options.max_images
+        }
+    
+    # Make the API call
+    response = requests.post(
+        "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
+        json=payload,
+        headers=headers,
+    )
+    
+    if response.status_code == 200:
+        result = response.json()
+        return BytePlusImageResponse(**result)
+    else:
+        raise Exception(
+            f"BytePlus API request failed with status code {response.status_code}: {response.text}"
+        )
