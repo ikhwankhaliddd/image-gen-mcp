@@ -23,6 +23,8 @@ model_id = os.environ.get("SEEDREAM_MODEL_ID")
 
 # Placeholder: Replace with actual Seedream API integration
 import base64
+import json
+import re
 
 # Add this import at the top if not already present
 
@@ -227,6 +229,77 @@ def generate_chara_image(
     return output_image_url, seededit_response
 
 
+def _parse_streaming_response(response_text: str) -> BytePlusImageResponse:
+    """Parse Server-Sent Events (SSE) response from BytePlus API"""
+    images = []
+    usage = None
+    
+    # Split response into event blocks
+    events = response_text.strip().split('\n\n')
+    
+    for event_block in events:
+        if not event_block.strip():
+            continue
+            
+        lines = event_block.strip().split('\n')
+        event_type = None
+        data = None
+        
+        # Parse event type and data
+        for line in lines:
+            if line.startswith('event: '):
+                event_type = line[7:].strip()
+            elif line.startswith('data: '):
+                data_str = line[6:].strip()
+                # Skip [DONE] marker
+                if data_str == '[DONE]':
+                    continue
+                try:
+                    data = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+        
+        # Process different event types
+        if event_type and data:
+            if event_type == 'image_generation.partial_succeeded':
+                # Extract image information from partial success events
+                if 'url' in data and 'size' in data:
+                    images.append({
+                        "url": data['url'],
+                        "size": data['size']
+                    })
+            elif event_type == 'image_generation.completed':
+                # Extract usage information from completion event
+                if 'usage' in data:
+                    usage = data['usage']
+    
+    # Ensure usage is always set
+    if usage is None:
+        usage = {
+            "generated_images": len(images),
+            "output_tokens": 0,
+            "total_tokens": 0
+        }
+    
+    return BytePlusImageResponse(data=images, usage=usage)
+
+
+def _format_prompt_for_multiple_images(prompt: str, max_images: int) -> str:
+    """
+    Format prompt for multiple image generation.
+    BytePlus API requires explicit 'series' language for multiple image generation to work.
+    """
+    # Check if prompt already mentions series/multiple images
+    series_keywords = ['series', 'illustrations', 'images', 'variations', 'different']
+    if any(keyword in prompt.lower() for keyword in series_keywords):
+        return prompt
+    
+    # Format the prompt to explicitly request a series
+    formatted_prompt = f"Generate a series of {max_images} coherent illustrations of {prompt}, each showing different perspectives or variations, presented in a unified style."
+    
+    return formatted_prompt
+
+
 def generate_byteplus_images(request: BytePlusImageRequest) -> BytePlusImageResponse:
     """
     Comprehensive BytePlus image generation function that handles all 5 use cases:
@@ -241,10 +314,26 @@ def generate_byteplus_images(request: BytePlusImageRequest) -> BytePlusImageResp
         "Authorization": f"Bearer {ark_api_key}",
     }
     
+    # Determine if we need to format the prompt for multiple images
+    original_prompt = request.prompt
+    formatted_prompt = original_prompt
+    
+    # Check if this is a multiple image generation request
+    is_multiple_images = (
+        request.sequential_image_generation.value == "auto" and 
+        request.sequential_image_generation_options is not None and
+        request.sequential_image_generation_options.max_images is not None and
+        request.sequential_image_generation_options.max_images > 1
+    )
+    
+    if is_multiple_images:
+        max_images = request.sequential_image_generation_options.max_images
+        formatted_prompt = _format_prompt_for_multiple_images(original_prompt, max_images)
+    
     # Build the request payload
     payload = {
         "model": request.model,
-        "prompt": request.prompt,
+        "prompt": formatted_prompt,
         "sequential_image_generation": request.sequential_image_generation.value,
         "response_format": request.response_format.value,
         "size": request.size.value,
@@ -270,8 +359,13 @@ def generate_byteplus_images(request: BytePlusImageRequest) -> BytePlusImageResp
     )
     
     if response.status_code == 200:
-        result = response.json()
-        return BytePlusImageResponse(**result)
+        # Handle streaming response (when stream=True)
+        if 'text/event-stream' in response.headers.get('content-type', ''):
+            return _parse_streaming_response(response.text)
+        else:
+            # Handle regular JSON response (when stream=False)
+            result = response.json()
+            return BytePlusImageResponse(**result)
     else:
         raise Exception(
             f"BytePlus API request failed with status code {response.status_code}: {response.text}"

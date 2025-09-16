@@ -171,4 +171,13 @@ async def byteplus_image_generation_direct(
 
 if __name__ == "__main__":
     print("Image Generation Agent is running on port 8003.")
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    # Configure uvicorn with longer timeouts for multiple image generation
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8003,
+        timeout_keep_alive=300,  # 5 minutes keep-alive timeout
+        timeout_graceful_shutdown=30,  # 30 seconds graceful shutdown
+        # Add worker timeout for handling long requests
+        workers=1  # Single worker to avoid timeout issues
+    )

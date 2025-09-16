@@ -159,9 +159,21 @@ def render_generation_controls(mcp):
     
     with col1:
         st.markdown("### 📝 Prompt")
+        
+        # Show helpful tip for multiple image generation
+        if "Multiple" in generation_type:
+            st.info(
+                "💡 **Tip for Multiple Images**: For best results, explicitly request multiple images in your prompt. "
+                "Examples:\n"
+                "- 'Generate a series of 4 illustrations of...'\n"
+                "- 'Create multiple coherent images showing...'\n"
+                "- 'Generate 3 different variations of...'"
+            )
+        
         prompt = st.text_area(
             "Enter your prompt",
-            placeholder="Describe the image you want to generate...",
+            placeholder="Describe the image you want to generate..." if "Multiple" not in generation_type 
+                       else "Generate a series of coherent illustrations of...",
             height=100,
             help="Detailed description of the image you want to create"
         )
@@ -255,10 +267,13 @@ def render_generation_controls(mcp):
                         st.error("Please upload reference images for Img2Img generation!")
                         return
                 
+                # Get current widget values from session state to ensure we have the latest values
+                current_sequential_mode = st.session_state.get('sequential_mode_selector', 'auto') if "Multiple" in generation_type else "disabled"
+                
                 # Prepare request data
                 request_data = prepare_request_data(
                     generation_type, prompt, negative_prompt, size, 
-                    sequential_mode, num_images
+                    current_sequential_mode, num_images
                 )
                 
                 # Determine which API endpoint to use based on response format setting
@@ -309,7 +324,7 @@ def render_generation_controls(mcp):
                                 'result': result,
                                 'settings': {
                                     'size': size,
-                                    'sequential_mode': sequential_mode,
+                                    'sequential_mode': current_sequential_mode,
                                     'num_images': num_images
                                 }
                             })
@@ -570,7 +585,7 @@ def prepare_request_data(generation_type: str, prompt: str, negative_prompt: str
     # Add sequential generation options for multiple images
     if "Multiple" in generation_type:
         request_data["sequential_image_generation_options"] = {
-            "num_images": num_images
+            "max_images": num_images
         }
     
     # Add advanced settings if available
@@ -594,10 +609,14 @@ def make_generation_request(mcp, request_data: Dict[str, Any]) -> Tuple[bool, An
         # Calculate request size
         request_size = len(json.dumps(request_data).encode('utf-8'))
         
+        # Use longer timeout for multiple image generation
+        is_multiple_generation = "sequential_image_generation_options" in request_data
+        timeout_duration = 300 if is_multiple_generation else 120  # 5 minutes for multiple, 2 minutes for single
+        
         response = requests.post(
             mcp.endpoints['byteplus_generate'],
             json=request_data,
-            timeout=120  # 2 minutes timeout for generation
+            timeout=timeout_duration
         )
         
         response_time = time.time() - start_time
@@ -667,6 +686,10 @@ def make_direct_image_request(mcp, request_data: Dict[str, Any], image_index: in
         # Calculate request size
         request_size = len(json.dumps(request_data).encode('utf-8'))
         
+        # Use longer timeout for multiple image generation
+        is_multiple_generation = "sequential_image_generation_options" in request_data
+        timeout_duration = 300 if is_multiple_generation else 120  # 5 minutes for multiple, 2 minutes for single
+        
         # Add image_index as query parameter
         params = {'image_index': image_index}
         
@@ -674,7 +697,7 @@ def make_direct_image_request(mcp, request_data: Dict[str, Any], image_index: in
             mcp.endpoints['byteplus_generate_image'],
             json=request_data,
             params=params,
-            timeout=120  # 2 minutes timeout for generation
+            timeout=timeout_duration
         )
         
         response_time = time.time() - start_time

@@ -39,7 +39,7 @@ class BytePlusImageRequest(BaseModel):
     sequential_image_generation_options: Optional[SequentialImageGenerationOptions] = None
     response_format: ResponseFormat = ResponseFormat.URL
     size: ImageSize = ImageSize.SIZE_2K
-    stream: bool = False
+    stream: bool = True
     watermark: bool = True
 
 
