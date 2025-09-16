@@ -305,6 +305,7 @@ def render_generation_controls(mcp):
                             request_data,
                             operation_name="Image Generation API Call"
                         )
+
                     
                     # Handle the result safely
                     if api_result and isinstance(api_result, tuple) and len(api_result) == 2:
